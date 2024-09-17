@@ -4,6 +4,8 @@ import time
 from logger import log_playing_file
 from gui import pause_event
 
+manual_switch = False  # 标志是否为手动切换
+
 def set_wallpaper(image_path):
     try:
         key = reg.OpenKey(reg.HKEY_CURRENT_USER, r"Control Panel\Desktop", 0, reg.KEY_SET_VALUE)
@@ -15,13 +17,30 @@ def set_wallpaper(image_path):
     except Exception as e:
         print(f"Failed to set wallpaper: {e}")
 
-def play_images(images, log_filename, interval, stop_event):
-    index = 0  # 用于追踪当前播放的图片
+def play_images(images, log_filename, interval, stop_event, current_index):
+    global manual_switch
+    global next_index
+    last_switch_time = time.time()  # 记录上次切换的时间
     while not stop_event.is_set():  # 检查 stop_event 是否已设置
         if pause_event.is_set():  # 检查是否暂停
-            log_playing_file(images[index], log_filename)
-            set_wallpaper(images[index])
-            index = (index + 1) % len(images)  # 循环播放下一张图片
-            time.sleep(interval)
+            current_time = time.time()
+            if manual_switch:  # 手动切换
+                log_playing_file(images[current_index[0]], log_filename)
+                set_wallpaper(images[current_index[0]])
+                next_index = (current_index[0] + 1) % len(images)  # 自动切换到下一张图片
+                manual_switch = False  # 重置手动切换标志
+                last_switch_time = time.time()  # 更新上次切换时间
+            elif current_time - last_switch_time >= interval:
+                current_index[0]=next_index
+                log_playing_file(images[current_index[0]], log_filename)
+                set_wallpaper(images[current_index[0]])
+                next_index = (current_index[0] + 1) % len(images)  # 自动切换到下一张图片
+                last_switch_time = time.time()  # 更新上次切换时间
+            time.sleep(1)  # 每秒检查一次
         else:
             time.sleep(1)  # 暂停时稍作等待，再次检查是否恢复播放
+
+def change_image(index, images):
+    global manual_switch
+    manual_switch = True  # 标记为手动切换
+    set_wallpaper(images[index])  # 根据索引更改壁纸
