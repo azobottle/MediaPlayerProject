@@ -3,7 +3,9 @@ import winreg as reg
 import time
 from logger import log_playing_file
 from gui import pause_event
-
+global manual_switch
+global next_index
+global last_switch_time
 manual_switch = False  # 标志是否为手动切换
 
 def set_wallpaper(image_path):
@@ -20,27 +22,28 @@ def set_wallpaper(image_path):
 def play_images(images, log_filename, interval, stop_event, current_index):
     global manual_switch
     global next_index
-    last_switch_time = time.time()  # 记录上次切换的时间
+    change_image(images,current_index,log_filename)
     while not stop_event.is_set():  # 检查 stop_event 是否已设置
         if pause_event.is_set():  # 检查是否暂停
             current_time = time.time()
             if manual_switch:  # 手动切换
-                log_playing_file(images[current_index[0]], log_filename)
-                set_wallpaper(images[current_index[0]])
-                next_index = (current_index[0] + 1) % len(images)  # 自动切换到下一张图片
+                change_image(images,current_index,log_filename)
                 manual_switch = False  # 重置手动切换标志
-                last_switch_time = time.time()  # 更新上次切换时间
             elif current_time - last_switch_time >= interval:
                 current_index[0]=next_index
-                log_playing_file(images[current_index[0]], log_filename)
-                set_wallpaper(images[current_index[0]])
-                next_index = (current_index[0] + 1) % len(images)  # 自动切换到下一张图片
-                last_switch_time = time.time()  # 更新上次切换时间
+                change_image(images,current_index,log_filename)
             time.sleep(1)  # 每秒检查一次
         else:
             time.sleep(1)  # 暂停时稍作等待，再次检查是否恢复播放
 
-def change_image(index, images):
+def change_image(images,current_index,log_filename):
+    global next_index
+    global last_switch_time
+    log_playing_file(images[current_index[0]], log_filename)
+    set_wallpaper(images[current_index[0]])
+    next_index=current_index[0]+1
+    last_switch_time = time.time()  # 记录上次切换的时间
+def change_image_manual(index, images):
     global manual_switch
     manual_switch = True  # 标记为手动切换
     set_wallpaper(images[index])  # 根据索引更改壁纸

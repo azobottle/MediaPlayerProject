@@ -1,6 +1,6 @@
 from threading import Thread, Event
 from gui import create_gui
-from wallpaper import play_images, change_image
+from wallpaper import play_images, change_image_manual
 from utils import get_images_from_directory
 from datetime import datetime
 import random
@@ -22,7 +22,7 @@ def main():
         current_index = [0]  # 用列表以便传引用
 
         # 启动 GUI 线程，并传入 stop_event、图片列表和共享的 current_index
-        gui_thread = Thread(target=create_gui, args=(stop_event, images, current_index, lambda idx: change_image(idx, images)))
+        gui_thread = Thread(target=create_gui, args=(stop_event, images, current_index, lambda idx: change_image_manual(idx, images)))
         gui_thread.start()
 
         # 启动图片播放线程，并传入 stop_event 和共享的 current_index
