@@ -1,72 +1,56 @@
 import os
+import time
 import ctypes
+from pathlib import Path
+import winreg as reg
 import random
-import subprocess
-from config import media_directory, extensions, video_duration, interval
-from logger import log_playing_file
+from datetime import datetime
 
-class MediaPlayer:
-    def __init__(self):
-        self.media_files = self.get_media_from_directory(media_directory)
-        self.current_index = 0
-        self.is_paused = False
-        self.is_looping = True  # 添加循环播放的标志
+# 定义函数来设置壁纸并更新壁纸展示方式（居中显示，不拉伸）
+def set_wallpaper(image_path):
+    # 设置壁纸的展示样式为"适应屏幕"
+    key = reg.OpenKey(reg.HKEY_CURRENT_USER, r"Control Panel\Desktop", 0, reg.KEY_SET_VALUE)
+    reg.SetValueEx(key, "WallpaperStyle", 0, reg.REG_SZ, "6")  # "6"表示"居中"
+    reg.SetValueEx(key, "TileWallpaper", 0, reg.REG_SZ, "0")  # "0"表示不平铺
+    reg.CloseKey(key)
 
-        # 打乱媒体文件列表
-        random.shuffle(self.media_files)
+    # 使用 Windows API 设置壁纸
+    ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 3)
 
-    def get_media_from_directory(self, directory):
-        media_files = []
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                if any(file.lower().endswith(ext) for ext in extensions):
-                    media_files.append(os.path.join(root, file))
-        return media_files
+# 获取图片目录下的所有图片（包括子目录中的图片）
+def get_images_from_directory(directory, extensions=['.jpg', '.png', '.bmp']):
+    image_files = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if any(file.lower().endswith(ext) for ext in extensions):
+                image_files.append(os.path.join(root, file))
+    return image_files
 
-    def set_wallpaper(self, image_path):
-        key = ctypes.windll.user32.SystemParametersInfoW
-        key(20, 0, image_path, 3)
-        log_playing_file(image_path)
+# 记录当前播放的文件路径到日志
+def log_playing_file(file_path, log_filename):
+    # 打开日志文件并将播放文件路径追加到日志中
+    with open("log/"+log_filename, 'a') as log_file:
+        log_file.write(f"Playing: {file_path}\n")
+    print(f"Logged playing file: {file_path} to {log_filename}")
 
-    def play_video_as_wallpaper(self, video_path):
-        vlc_command = ['vlc', '--video-wallpaper', '--no-audio', video_path]
-        subprocess.Popen(vlc_command)
-        log_playing_file(video_path)
+# 目录路径
+image_directory = 'D:\MediaPlayerProject\media'  # 替换为你的图片目录
+interval = 10  # 图片轮换的时间间隔（以秒为单位）
 
-    def play_current(self):
-        if self.is_paused:
-            return
-        
-        media = self.media_files[self.current_index]
-        if media.lower().endswith(('.mp4', '.avi', '.mkv')):
-            self.play_video_as_wallpaper(media)
-            # 暂时设置播放视频的时长
-            time.sleep(video_duration)
-        else:
-            self.set_wallpaper(media)
-            time.sleep(interval)
+# 获取所有图片文件
+images = get_images_from_directory(image_directory)
+log_filename = f"log_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
 
-    def play_next(self):
-        if self.is_looping:
-            self.current_index = (self.current_index + 1) % len(self.media_files)
-        else:
-            self.current_index = min(self.current_index + 1, len(self.media_files) - 1)
-        self.play_current()
-
-    def play_previous(self):
-        if self.is_looping:
-            self.current_index = (self.current_index - 1) % len(self.media_files)
-        else:
-            self.current_index = max(self.current_index - 1, 0)
-        self.play_current()
-
-    def pause(self):
-        self.is_paused = True
-
-    def resume(self):
-        self.is_paused = False
-        self.play_current()
-
-    def toggle_loop(self):
-        self.is_looping = not self.is_looping
-        print(f"Looping {'enabled' if self.is_looping else 'disabled'}")
+if not images:
+    print("No images found in the directory.")
+else:
+    # 打乱图片列表
+    random.shuffle(images)
+    
+    # 循环播放图片作为壁纸
+    while True:
+        for image in images:
+            # 记录当前播放的媒体文件路径到日志
+            log_playing_file(image, log_filename)
+            set_wallpaper(image)  # 设置当前图片为壁纸
+            time.sleep(interval)  # 等待一段时间后切换到下一张图片
