@@ -1,8 +1,10 @@
 import os
 
+from utils import getWeekRange
+
 def log_playing_file(file_path, log_filename):
     try:
-        log_dir = "log"
+        log_dir = os.path.join("log",getWeekRange())
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         with open(os.path.join(log_dir, log_filename), 'a', encoding="UTF-8") as log_file:
