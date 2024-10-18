@@ -2,9 +2,9 @@ import sys
 import asyncio
 import threading
 from PyQt6 import QtWidgets
+from Status import CustomStatus
 from gui import WallpaperChangerGUI
-from logger import Logger
-from wallpaper import ImagePathLoader, WallPaperChanger, State
+from wallpaper import ImagePathLoader, WallPaperChanger
 import qasync
 
 def main():
@@ -12,7 +12,7 @@ def main():
     loader = ImagePathLoader(image_directory, 6)
     interval = 10  # Time interval in seconds
     changer = WallPaperChanger(interval)
-    state = State()
+    state = CustomStatus()
 
     def run_gui():
         app = QtWidgets.QApplication(sys.argv)
@@ -33,7 +33,7 @@ def main():
         loop.run_until_complete(changer.play_images(state, loader))
 
     threading.Thread(target=run_async).start()
-    threading.Thread(target=run_gui).start()
+    run_gui()
 
 if __name__ == "__main__":
     main()

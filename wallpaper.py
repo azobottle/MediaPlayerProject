@@ -4,9 +4,8 @@ import random
 import winreg as reg
 import asyncio
 
+from Status import CustomStatus
 from logger import custom_logger
-
-
 class ImagePathLoader:
     def __init__(self, directory: str, seed: int):
         self.directory = directory
@@ -33,37 +32,26 @@ class ImagePathLoader:
                     self.images.append(os.path.join(root, file))
         random.seed(self.seed)
         random.shuffle(self.images)
+class WallPaperChanger:
+    def __init__(self, interval: int):
+        self.interval = interval
+
+    async def play_images(self, state: CustomStatus, loader: ImagePathLoader):
+        path = loader.next_image_path()
+        set_wallpaper(path)
+        while True:
+            try:
+                await state.wait_for_re_sleep(self.interval)
+            except asyncio.TimeoutError:
+                await state.wait_for_value("Resume")
+                path = loader.next_image_path()
+                set_wallpaper(path)
+            else:
+                print("Resetting sleep timer")
+                state.clear()  # 清除事件，准备下一次等待
 
 
-class State:
-    def __init__(self):
-        self.value = "Resume"
-        self.condition = asyncio.Condition()
-        self.re_sleep_event = asyncio.Event()
 
-    async def set_value(self, new_value):
-        async with self.condition:
-            self.value = new_value
-            self.condition.notify_all()
-
-    def get_value(self):
-        return self.value
-
-    async def wait_for_value(self, target_value):
-        async with self.condition:
-            await self.condition.wait_for(lambda: self.value == target_value)
-        print(f"Value reached {target_value}")
-
-    def trigger_reset(self):
-        self.re_sleep_event.set()  # 触发事件
-
-    async def wait_for_re_sleep(self, interval):
-        print("wait_for_re_sleep start")
-        await asyncio.wait_for(self.re_sleep_event.wait(), timeout=interval)
-        print("wait_for_re_sleep end")
-
-    def clear(self):
-        self.re_sleep_event.clear()
 
 
 def set_wallpaper(image_path):
@@ -78,22 +66,3 @@ def set_wallpaper(image_path):
 
     except Exception as e:
         print(f"Failed to set wallpaper: {e}")
-
-
-class WallPaperChanger:
-    def __init__(self, interval: int):
-        self.interval = interval
-
-    async def play_images(self, state: State, loader: ImagePathLoader):
-        path = loader.next_image_path()
-        set_wallpaper(path)
-        while True:
-            try:
-                await state.wait_for_re_sleep(self.interval)
-            except asyncio.TimeoutError:
-                await state.wait_for_value("Resume")
-                path = loader.next_image_path()
-                set_wallpaper(path)
-            else:
-                print("Resetting sleep timer")
-                state.clear()  # 清除事件，准备下一次等待

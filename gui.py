@@ -1,11 +1,12 @@
 import asyncio
 
 from PyQt6 import QtWidgets
-from wallpaper import State, ImagePathLoader, set_wallpaper
+from Status import CustomStatus
+from wallpaper import ImagePathLoader, set_wallpaper
 
 
 class WallpaperChangerGUI(QtWidgets.QWidget):
-    def __init__(self, state: State, loader: ImagePathLoader):
+    def __init__(self, state: CustomStatus, loader: ImagePathLoader):
         super().__init__()
         self.prev_button = None
         self.pause_button = None
@@ -39,13 +40,19 @@ class WallpaperChangerGUI(QtWidgets.QWidget):
         self.setLayout(layout)
         self.resize(300, 200)
 
-    def toggle_pause(self):
+    async def toggle_pause_async(self):
         if self.state.get_value() == "Resume":
-            asyncio.create_task(self.state.set_value("Pause"))
+            print("set to Pause")
+            await self.state.set_value("Pause")
             self.pause_button.setText('Resume')
         else:
-            asyncio.create_task(self.state.set_value("Resume"))
+            print("set to Resume")
+            await self.state.set_value("Resume")
             self.pause_button.setText('Pause')
+
+    def toggle_pause(self):
+        asyncio.create_task(self.toggle_pause_async())
+
 
     def previous_image(self):
         # 触发重置以进入下一次等待
