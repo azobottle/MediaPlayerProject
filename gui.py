@@ -14,7 +14,6 @@ class WallpaperChangerGUI(QtWidgets.QWidget):
         self.state = state
         self.loader = loader
         self.initUI()
-        self.show()
 
     def initUI(self):
         self.setWindowTitle('Wallpaper Changer')
@@ -42,11 +41,9 @@ class WallpaperChangerGUI(QtWidgets.QWidget):
 
     async def toggle_pause_async(self):
         if self.state.get_value() == "Resume":
-            print("set to Pause")
             await self.state.set_value("Pause")
             self.pause_button.setText('Resume')
         else:
-            print("set to Resume")
             await self.state.set_value("Resume")
             self.pause_button.setText('Pause')
 
@@ -57,11 +54,13 @@ class WallpaperChangerGUI(QtWidgets.QWidget):
     def previous_image(self):
         # 触发重置以进入下一次等待
         path = self.loader.previous_image_path()
+        print("[change] manually change and re_sleep "+path)
         set_wallpaper(path)
         self.state.trigger_reset()
 
     def next_image(self):
         # 触发重置以进入下一次等待
         path = self.loader.next_image_path()
+        print("[change] manually change and re_sleep "+path)
         set_wallpaper(path)
         self.state.trigger_reset()

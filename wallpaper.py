@@ -5,7 +5,8 @@ import winreg as reg
 import asyncio
 
 from Status import CustomStatus
-from logger import custom_logger
+from logger import file_logger
+
 class ImagePathLoader:
     def __init__(self, directory: str, seed: int):
         self.directory = directory
@@ -32,27 +33,29 @@ class ImagePathLoader:
                     self.images.append(os.path.join(root, file))
         random.seed(self.seed)
         random.shuffle(self.images)
+
 class WallPaperChanger:
     def __init__(self, interval: int):
         self.interval = interval
 
     async def play_images(self, state: CustomStatus, loader: ImagePathLoader):
         path = loader.next_image_path()
+        print("[change] first change "+path)
         set_wallpaper(path)
         while True:
             try:
+                print("[prepare 1] waiting for re_sleep event or timeout")
                 await state.wait_for_re_sleep(self.interval)
             except asyncio.TimeoutError:
+                print("[prepare 2] timeout,waiting for Resume value")
                 await state.wait_for_value("Resume")
                 path = loader.next_image_path()
+                print("[change] automatically change "+path)
                 set_wallpaper(path)
+                print("[end] timeout end")
             else:
-                print("Resetting sleep timer")
+                print("[end] re_sleep end,clear to prepare next loop")
                 state.clear()  # 清除事件，准备下一次等待
-
-
-
-
 
 def set_wallpaper(image_path):
     try:
@@ -62,7 +65,7 @@ def set_wallpaper(image_path):
         reg.CloseKey(key)
 
         ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 3)
-        custom_logger.log_playing_file(image_path)
+        file_logger.log_playing_file(image_path)
 
     except Exception as e:
-        print(f"Failed to set wallpaper: {e}")
+        print(f"[error] Failed to set wallpaper: {e}")
