@@ -1,12 +1,70 @@
 import ctypes
+import os
+import random
 import winreg as reg
-import time
-from logger import log_playing_file
-from gui import pause_event
-global manual_switch
-global next_index
-global last_switch_time
-manual_switch = False  # 标志是否为手动切换
+import asyncio
+
+from logger import custom_logger
+
+
+class ImagePathLoader:
+    def __init__(self, directory: str, seed: int):
+        self.directory = directory
+        self.seed = seed
+        self.images = []
+        self.set_images_from_directory(directory)
+        self.image_index = 0
+        self.image_length = len(self.images)
+
+    def next_image_path(self) -> str:
+        self.image_index = (self.image_index + 1) % len(self.images)
+        return self.images[self.image_index]
+
+    def previous_image_path(self) -> str:
+        self.image_index = (self.image_index - 1) % len(self.images)
+        return self.images[self.image_index]
+
+    def set_images_from_directory(self, directory, extensions=None):
+        if extensions is None:
+            extensions = ['.jpg', '.png', '.bmp']
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if any(file.lower().endswith(ext) for ext in extensions):
+                    self.images.append(os.path.join(root, file))
+        random.seed(self.seed)
+        random.shuffle(self.images)
+
+
+class State:
+    def __init__(self):
+        self.value = "Resume"
+        self.condition = asyncio.Condition()
+        self.re_sleep_event = asyncio.Event()
+
+    async def set_value(self, new_value):
+        async with self.condition:
+            self.value = new_value
+            self.condition.notify_all()
+
+    def get_value(self):
+        return self.value
+
+    async def wait_for_value(self, target_value):
+        async with self.condition:
+            await self.condition.wait_for(lambda: self.value == target_value)
+        print(f"Value reached {target_value}")
+
+    def trigger_reset(self):
+        self.re_sleep_event.set()  # 触发事件
+
+    async def wait_for_re_sleep(self, interval):
+        print("wait_for_re_sleep start")
+        await asyncio.wait_for(self.re_sleep_event.wait(), timeout=interval)
+        print("wait_for_re_sleep end")
+
+    def clear(self):
+        self.re_sleep_event.clear()
+
 
 def set_wallpaper(image_path):
     try:
@@ -16,34 +74,26 @@ def set_wallpaper(image_path):
         reg.CloseKey(key)
 
         ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 3)
+        custom_logger.log_playing_file(image_path)
+
     except Exception as e:
         print(f"Failed to set wallpaper: {e}")
 
-def play_images(images, log_filename, interval, stop_event, current_index):
-    global manual_switch
-    global next_index
-    change_image(images,current_index,log_filename)
-    while not stop_event.is_set():  # 检查 stop_event 是否已设置
-        if pause_event.is_set():  # 检查是否暂停
-            current_time = time.time()
-            if manual_switch:  # 手动切换
-                change_image(images,current_index,log_filename)
-                manual_switch = False  # 重置手动切换标志
-            elif current_time - last_switch_time >= interval:
-                current_index[0]=next_index
-                change_image(images,current_index,log_filename)
-            time.sleep(1)  # 每秒检查一次
-        else:
-            time.sleep(1)  # 暂停时稍作等待，再次检查是否恢复播放
 
-def change_image(images,current_index,log_filename):
-    global next_index
-    global last_switch_time
-    log_playing_file(images[current_index[0]], log_filename)
-    set_wallpaper(images[current_index[0]])
-    next_index=current_index[0]+1
-    last_switch_time = time.time()  # 记录上次切换的时间
-def change_image_manual(index, images):
-    global manual_switch
-    manual_switch = True  # 标记为手动切换
-    set_wallpaper(images[index])  # 根据索引更改壁纸
+class WallPaperChanger:
+    def __init__(self, interval: int):
+        self.interval = interval
+
+    async def play_images(self, state: State, loader: ImagePathLoader):
+        path = loader.next_image_path()
+        set_wallpaper(path)
+        while True:
+            try:
+                await state.wait_for_re_sleep(self.interval)
+            except asyncio.TimeoutError:
+                await state.wait_for_value("Resume")
+                path = loader.next_image_path()
+                set_wallpaper(path)
+            else:
+                print("Resetting sleep timer")
+                state.clear()  # 清除事件，准备下一次等待

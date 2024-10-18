@@ -1,33 +1,39 @@
-from threading import Thread, Event
-from gui import create_gui
-from wallpaper import play_images, change_image_manual
-from utils import get_images_from_directory
-from datetime import datetime
-import random
+import sys
+import asyncio
+import threading
+from PyQt6 import QtWidgets
+from gui import WallpaperChangerGUI
+from logger import Logger
+from wallpaper import ImagePathLoader, WallPaperChanger, State
+import qasync
 
 def main():
     image_directory = 'D:\\MediaPlayerProject\\media'
+    loader = ImagePathLoader(image_directory, 6)
     interval = 10  # Time interval in seconds
+    changer = WallPaperChanger(interval)
+    state = State()
 
-    images = get_images_from_directory(image_directory)
-    random.shuffle(images)
-    log_filename = f"log_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
+    def run_gui():
+        app = QtWidgets.QApplication(sys.argv)
 
-    if not images:
-        print("No images found in the directory.")
-    else:
-        stop_event = Event()
+        # 使用 qasync 适配器来启动 asyncio 的事件循环
+        loop = qasync.QEventLoop(app)
+        asyncio.set_event_loop(loop)
+        window = WallpaperChangerGUI(state, loader)
 
-        # 初始化 current_index 为全局变量
-        current_index = [0]  # 用列表以便传引用
+        # 使用 qasync 启动 Qt 和 asyncio 的事件循环
+        with loop:
+            loop.run_forever()
 
-        # 启动 GUI 线程，并传入 stop_event、图片列表和共享的 current_index
-        gui_thread = Thread(target=create_gui, args=(stop_event, images, current_index, lambda idx: change_image_manual(idx, images)))
-        gui_thread.start()
+    # 在新线程中运行异步代码
+    def run_async():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(changer.play_images(state, loader))
 
-        # 启动图片播放线程，并传入 stop_event 和共享的 current_index
-        play_thread = Thread(target=play_images, args=(images, log_filename, interval, stop_event, current_index))
-        play_thread.start()
+    threading.Thread(target=run_async).start()
+    threading.Thread(target=run_gui).start()
 
 if __name__ == "__main__":
     main()
